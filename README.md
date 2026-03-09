@@ -31,7 +31,7 @@ Participants (N = 400) were randomly assigned to one of three conditions:
 | `AI_Single_APPROVED.xlsx` | AI-Single | 115 | 
 | `AI_Multiple_APPROVED.xlsx` | AI-Multiple | 144 | 
 
-Each file contains one row per participant. A full description of all columns is available in the [data dictionary](https://github.com/xxxxbrandieeee/close-reading-data-dictionary).
+A full description of all columns is available in the [data dictionary](https://github.com/xxxxbrandieeee/close-reading-data-dictionary).
 
 ### Performance Scores
 
