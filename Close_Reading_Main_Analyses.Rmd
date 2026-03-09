@@ -1,0 +1,308 @@
+---
+title: "Close Reading Study - Main Study Analysis"
+author: "Jiayin Zhi"
+date: "2026"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    df_print: paged
+---
+
+# Setup
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(readxl)
+library(lme4)
+library(lmerTest)
+library(ordinal)
+library(broom.mixed)
+library(knitr)
+library(glue)
+
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+knitr::opts_knit$set(root.dir = normalizePath("."))
+set.seed(234)
+```
+
+# 1. Data Loading and Preparation
+## 1.1 Load Data
+```{r load-data, message=FALSE}
+# Load datasets; files should be in the same directory as this script
+df_control  <- read_excel("data/Control_APPROVED.xlsx")
+df_single   <- read_excel("data/AI_Single_APPROVED.xlsx")
+df_multiple <- read_excel("data/AI_Multiple_APPROVED.xlsx")
+
+# Combine all conditions
+df_all <- bind_rows(df_control, df_single, df_multiple) %>%
+  rename(participant_id = anonymized_id) %>%
+  mutate(condition = factor(Condition, levels = c("Control", "AI_Single", "AI_Multiple"))) %>%
+  select(-Condition)
+
+cat("Total participants:", nrow(df_all), "\n")
+cat("Participants per condition:\n")
+print(table(df_all$condition))
+
+df_clean <- df_all
+```
+
+## 1.2 Create Expertise Classification
+```{r expertise-classification}
+course_exp_levels <- c("None", "Very little", "A little", "A moderate amount", "A lot")
+
+df_clean <- df_clean %>%
+  mutate(
+    humanities_course_experience = factor(
+      humanities_course_experience,
+      levels = course_exp_levels,
+      ordered = TRUE
+    ),
+    # Binary expertise: "A moderate amount" or higher = expert
+    humanities_expert = factor(
+      if_else(as.numeric(humanities_course_experience) >= 4, "expert", "novice"),
+      levels = c("novice", "expert")
+    )
+  )
+
+cat("Expertise distribution:\n")
+print(table(df_clean$humanities_expert, useNA = "always"))
+cat("\nExpertise by condition:\n")
+print(table(df_clean$condition, df_clean$humanities_expert))
+```
+
+# 2. Performance Measures Analysis
+## 2.1 Load Graded Performance Data
+```{r load-graded-data, message=FALSE}
+graded_data <- read_excel("grades/Grades.xlsx")
+col_names   <- colnames(graded_data)
+
+graded_clean <- graded_data %>%
+  rename(
+    participant_id = anonymized_id,
+    # Love Poem scores
+    love_poem_first_feature          = !!sym(col_names[4]),
+    love_poem_second_feature         = !!sym(col_names[9]),
+    love_poem_third_feature          = !!sym(col_names[14]),
+    love_poem_first_interpretation   = !!sym(col_names[5]),
+    love_poem_second_interpretation  = !!sym(col_names[10]),
+    love_poem_third_interpretation   = !!sym(col_names[15]),
+    love_poem_first_writing          = !!sym(col_names[6]),
+    love_poem_second_writing         = !!sym(col_names[11]),
+    love_poem_third_writing          = !!sym(col_names[16]),
+    # Dusting scores
+    dusting_first_feature            = !!sym(col_names[19]),
+    dusting_second_feature           = !!sym(col_names[24]),
+    dusting_third_feature            = !!sym(col_names[29]),
+    dusting_first_interpretation     = !!sym(col_names[20]),
+    dusting_second_interpretation    = !!sym(col_names[25]),
+    dusting_third_interpretation     = !!sym(col_names[30]),
+    dusting_first_writing            = !!sym(col_names[21]),
+    dusting_second_writing           = !!sym(col_names[26]),
+    dusting_third_writing            = !!sym(col_names[31]),
+    # English B scores
+    english_b_first_feature          = !!sym(col_names[34]),
+    english_b_second_feature         = !!sym(col_names[39]),
+    english_b_third_feature          = !!sym(col_names[44]),
+    english_b_first_interpretation   = !!sym(col_names[35]),
+    english_b_second_interpretation  = !!sym(col_names[40]),
+    english_b_third_interpretation   = !!sym(col_names[45]),
+    english_b_first_writing          = !!sym(col_names[36]),
+    english_b_second_writing         = !!sym(col_names[41]),
+    english_b_third_writing          = !!sym(col_names[46])
+  )
+```
+
+## 2.2 Create Poem-Level Performance Scores
+```{r create-performance-data}
+poems <- c("love_poem", "dusting", "english_b")
+
+df_performance_poem_level <- map_dfr(poems, function(p) {
+  feature_cols <- paste0(p, c("_first_feature", "_second_feature", "_third_feature"))
+  interp_cols  <- paste0(p, c("_first_interpretation", "_second_interpretation", "_third_interpretation"))
+  writing_cols <- paste0(p, c("_first_writing", "_second_writing", "_third_writing"))
+
+  graded_clean %>%
+    select(participant_id, all_of(feature_cols), all_of(interp_cols), all_of(writing_cols)) %>%
+    rowwise() %>%
+    mutate(
+      feature_score        = mean(c_across(all_of(feature_cols)), na.rm = TRUE),
+      interpretation_score = mean(c_across(all_of(interp_cols)),  na.rm = TRUE),
+      writing_score        = mean(c_across(all_of(writing_cols)), na.rm = TRUE),
+      poem_id = p
+    ) %>%
+    ungroup() %>%
+    select(participant_id, poem_id, feature_score, interpretation_score, writing_score)
+})
+
+df_performance <- df_performance_poem_level %>%
+  left_join(
+    df_clean %>% select(participant_id, condition, humanities_expert, poem_order),
+    by = "participant_id"
+  ) %>%
+  filter(!is.na(condition)) %>%
+  mutate(
+    condition            = factor(condition, levels = c("Control", "AI_Single", "AI_Multiple")),
+    poem_id              = factor(poem_id, levels = c("love_poem", "dusting", "english_b")),
+    participant_expertise = factor(humanities_expert, levels = c("novice", "expert")),
+    poem_position = factor(
+      sapply(seq_along(poem_id), function(i) {
+        order_vec <- strsplit(poem_order[i], ";")[[1]]
+        match(as.character(poem_id[i]), order_vec)
+      }),
+      levels = c("1", "2", "3")
+    )
+  )
+
+cat("Performance data dimensions:", dim(df_performance), "\n")
+```
+
+## 2.3 Mixed-Effects Models for Performance
+```{r performance-models}
+model_feature <- lmer(
+  feature_score ~ condition + poem_position + poem_id + participant_expertise +
+    (1 | participant_id),
+  data = df_performance
+)
+
+model_interpretation <- lmer(
+  interpretation_score ~ condition + poem_position + poem_id + participant_expertise +
+    (1 | participant_id),
+  data = df_performance
+)
+
+model_writing <- lmer(
+  writing_score ~ condition + poem_position + poem_id + participant_expertise +
+    (1 | participant_id),
+  data = df_performance
+)
+
+performance_results <- bind_rows(
+  tidy(model_feature,        effects = "fixed", conf.int = TRUE) %>% mutate(outcome = "Feature Identification"),
+  tidy(model_interpretation, effects = "fixed", conf.int = TRUE) %>% mutate(outcome = "Interpretation Quality"),
+  tidy(model_writing,        effects = "fixed", conf.int = TRUE) %>% mutate(outcome = "Writing Quality")
+) %>%
+  select(outcome, term, estimate, std.error, statistic, p.value, conf.low, conf.high) %>%
+  filter(term != "(Intercept)")
+
+kable(performance_results, digits = 4,
+      caption = "Mixed-Effects Models: Performance Measures")
+
+kable(performance_results %>% filter(grepl("condition", term)), digits = 4,
+      caption = "Summary: Condition Effects on Performance")
+```
+
+# 3. Subjective Experience Analysis
+## 3.1 Create Long-Format Data for Ordinal Outcomes
+```{r create-ordinal-data}
+appreciation_levels <- c(
+  "I had a strongly negative reaction to it",
+  "I had a moderately negative reaction to it",
+  "I had a slightly negative reaction to it",
+  "Neutral",
+  "I had a slightly positive reaction to it",
+  "I had a moderately positive reaction to it",
+  "I had a strongly positive reaction to it"
+)
+
+enjoyment_levels <- c(
+  "Very unenjoyable",
+  "Moderately unenjoyable",
+  "Slightly unenjoyable",
+  "Neither enjoyable nor unenjoyable",
+  "Slightly enjoyable",
+  "Moderately enjoyable",
+  "Very enjoyable"
+)
+
+self_efficacy_levels <- c(
+  "I feel strongly unable",
+  "I feel moderately unable",
+  "I feel slightly unable",
+  "I feel neither able nor unable",
+  "I feel slightly able",
+  "I feel moderately able",
+  "I feel strongly able"
+)
+
+create_long_data <- function(df, measure_suffix, levels) {
+  map_dfr(poems, function(p) {
+    col_name <- glue("{p}_close_reading_{measure_suffix}")
+    df %>%
+      select(participant_id, condition, poem_order, humanities_expert, !!sym(col_name)) %>%
+      rename(rating = !!sym(col_name)) %>%
+      mutate(
+        poem_id        = p,
+        rating_factor  = factor(rating, levels = levels, ordered = TRUE),
+        rating_numeric = as.numeric(rating_factor)
+      )
+  }) %>%
+    filter(!is.na(rating_numeric))
+}
+
+prepare_ordinal_data <- function(df) {
+  df %>%
+    mutate(
+      condition             = factor(condition, levels = c("Control", "AI_Single", "AI_Multiple")),
+      participant_expertise = factor(humanities_expert, levels = c("novice", "expert")),
+      poem_id               = factor(poem_id, levels = c("love_poem", "dusting", "english_b")),
+      poem_position = factor(
+        sapply(seq_along(poem_id), function(i) {
+          order_vec <- strsplit(poem_order[i], ";")[[1]]
+          match(as.character(poem_id[i]), order_vec)
+        }),
+        levels = c("1", "2", "3")
+      )
+    ) %>%
+    filter(!is.na(rating_numeric), !is.na(participant_expertise))
+}
+
+df_appreciation  <- create_long_data(df_clean, "appreciation",  appreciation_levels)  %>% prepare_ordinal_data()
+df_enjoyment     <- create_long_data(df_clean, "enjoyment",     enjoyment_levels)     %>% prepare_ordinal_data()
+df_self_efficacy <- create_long_data(df_clean, "self_efficacy", self_efficacy_levels) %>% prepare_ordinal_data()
+```
+
+## 3.2 Ordinal Mixed-Effects Models
+```{r ordinal-models}
+model_appreciation <- clmm(
+  rating_factor ~ condition + poem_position + poem_id + participant_expertise +
+    (1 | participant_id),
+  data = df_appreciation
+)
+
+model_enjoyment <- clmm(
+  rating_factor ~ condition + poem_position + poem_id + participant_expertise +
+    (1 | participant_id),
+  data = df_enjoyment
+)
+
+model_self_efficacy <- clmm(
+  rating_factor ~ condition + poem_position + poem_id + participant_expertise +
+    (1 | participant_id),
+  data = df_self_efficacy
+)
+
+extract_ordinal_results <- function(model, model_name) {
+  tidy(model, effects = "fixed", conf.int = TRUE) %>%
+    mutate(outcome = model_name) %>%
+    filter(!grepl("\\|", term))
+}
+
+ordinal_results <- bind_rows(
+  extract_ordinal_results(model_appreciation,  "Appreciation"),
+  extract_ordinal_results(model_enjoyment,     "Enjoyment"),
+  extract_ordinal_results(model_self_efficacy, "Self-Efficacy")
+) %>%
+  select(outcome, term, estimate, std.error, statistic, p.value, conf.low, conf.high)
+
+kable(ordinal_results, digits = 3,
+      caption = "Ordinal Mixed Models: Subjective Experience (Log-Odds)")
+
+kable(ordinal_results %>% filter(grepl("condition", term)), digits = 3,
+      caption = "Summary: Condition Effects on Subjective Experience")
+```
+
+# 4. Session Information
+```{r session-info}
+sessionInfo()
+```
