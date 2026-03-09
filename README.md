@@ -23,13 +23,13 @@ This repository contains the anonymized data and analysis code for the paper *["
 
 ### Experimental Conditions
 
-Participants (*N* = 400) were randomly assigned to one of three conditions:
+Participants (N = 400) were randomly assigned to one of three conditions:
 
-| File | Condition | *n* | Description |
+| File | Condition | n | 
 |---|---|---|---|
-| `Control_APPROVED.xlsx` | Control | 141 | Close reading without AI assistance |
-| `AI_Single_APPROVED.xlsx` | AI-Single | 115 | Close reading with one AI interpretation displayed |
-| `AI_Multiple_APPROVED.xlsx` | AI-Multiple | 144 | Close reading with three AI interpretations displayed |
+| `Control_APPROVED.xlsx` | Control | 141 | 
+| `AI_Single_APPROVED.xlsx` | AI-Single | 115 | 
+| `AI_Multiple_APPROVED.xlsx` | AI-Multiple | 144 | 
 
 Each file contains one row per participant. A full description of all columns is available in the [data dictionary](https://github.com/xxxxbrandieeee/close-reading-data-dictionary).
 
