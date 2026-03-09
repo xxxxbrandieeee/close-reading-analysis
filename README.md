@@ -26,7 +26,7 @@ This repository contains the anonymized data and analysis code for the paper *["
 Participants (N = 400) were randomly assigned to one of three conditions:
 
 | File | Condition | n | 
-|---|---|---|---|
+|---|---|---|
 | `Control_APPROVED.xlsx` | Control | 141 | 
 | `AI_Single_APPROVED.xlsx` | AI-Single | 115 | 
 | `AI_Multiple_APPROVED.xlsx` | AI-Multiple | 144 | 
