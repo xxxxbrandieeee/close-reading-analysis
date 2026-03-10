@@ -1,7 +1,7 @@
 ---
 title: "Close Reading Study - Main Study Analysis"
 author: "Jiayin Zhi"
-date: "2026"
+date: "2025-08-05"
 output: 
   html_document:
     toc: true
@@ -11,7 +11,7 @@ output:
 ---
 
 # Setup
-```{r setup, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(readxl)
 library(lme4)
@@ -28,7 +28,7 @@ set.seed(234)
 
 # 1. Data Loading and Preparation
 ## 1.1 Load Data
-```{r load-data, message=FALSE}
+```{r, message=FALSE}
 # Load datasets; files should be in the same directory as this script
 df_control  <- read_excel("data/Control_APPROVED.xlsx")
 df_single   <- read_excel("data/AI_Single_APPROVED.xlsx")
@@ -48,7 +48,7 @@ df_clean <- df_all
 ```
 
 ## 1.2 Create Expertise Classification
-```{r expertise-classification}
+```{r}
 course_exp_levels <- c("None", "Very little", "A little", "A moderate amount", "A lot")
 
 df_clean <- df_clean %>%
@@ -73,7 +73,7 @@ print(table(df_clean$condition, df_clean$humanities_expert))
 
 # 2. Performance Measures Analysis
 ## 2.1 Load Graded Performance Data
-```{r load-graded-data, message=FALSE}
+```{r, message=FALSE}
 graded_data <- read_excel("grades/Grades.xlsx")
 col_names   <- colnames(graded_data)
 
@@ -114,7 +114,7 @@ graded_clean <- graded_data %>%
 ```
 
 ## 2.2 Create Poem-Level Performance Scores
-```{r create-performance-data}
+```{r}
 poems <- c("love_poem", "dusting", "english_b")
 
 df_performance_poem_level <- map_dfr(poems, function(p) {
@@ -158,7 +158,7 @@ cat("Performance data dimensions:", dim(df_performance), "\n")
 ```
 
 ## 2.3 Mixed-Effects Models for Performance
-```{r performance-models}
+```{r}
 model_feature <- lmer(
   feature_score ~ condition + poem_position + poem_id + participant_expertise +
     (1 | participant_id),
@@ -194,7 +194,7 @@ kable(performance_results %>% filter(grepl("condition", term)), digits = 4,
 
 # 3. Subjective Experience Analysis
 ## 3.1 Create Long-Format Data for Ordinal Outcomes
-```{r create-ordinal-data}
+```{r}
 appreciation_levels <- c(
   "I had a strongly negative reaction to it",
   "I had a moderately negative reaction to it",
@@ -263,7 +263,7 @@ df_self_efficacy <- create_long_data(df_clean, "self_efficacy", self_efficacy_le
 ```
 
 ## 3.2 Ordinal Mixed-Effects Models
-```{r ordinal-models}
+```{r}
 model_appreciation <- clmm(
   rating_factor ~ condition + poem_position + poem_id + participant_expertise +
     (1 | participant_id),
@@ -302,7 +302,3 @@ kable(ordinal_results %>% filter(grepl("condition", term)), digits = 3,
       caption = "Summary: Condition Effects on Subjective Experience")
 ```
 
-# 4. Session Information
-```{r session-info}
-sessionInfo()
-```
