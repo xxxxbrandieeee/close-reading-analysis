@@ -23,7 +23,7 @@ This repository contains the anonymized data and analysis code for the paper *["
 
 ### Experimental Conditions
 
-Participants (N = 400) were randomly assigned to one of three conditions:
+Participants (N = 400) were recruited via Prolific as lay readers, and were randomly assigned to one of three conditions:
 
 | File | Condition | n | 
 |---|---|---|
@@ -55,7 +55,7 @@ install.packages(c("tidyverse", "readxl", "lme4", "lmerTest",
 **`Close_Reading_Main_Analyses.Rmd`**
 
 Prepares analysis-ready data and fits the primary models:
-- Loads and merges condition data with graded performance scores; Classifies participants as novice or expert based on humanities coursework experience
+- Loads and merges condition data with graded performance scores; classifies participants as novice or expert based on humanities coursework experience
 - Fits linear mixed-effects models (`lmer`) for the three performance outcomes: Feature Identification, Interpretation Quality, and Writing Quality
 - Fits ordinal mixed-effects models (`clmm`) for the three subjective experience outcomes: Appreciation, Enjoyment, and Self-Efficacy
 - All models include poem position, poem identity, and expertise as covariates, with random intercepts for participant.
